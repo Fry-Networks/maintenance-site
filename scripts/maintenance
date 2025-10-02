@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# usage: maintenance on|off [--pm2]
+set -euo pipefail
+
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+  echo "Usage: $0 on|off [--pm2]"
+  exit 2
+fi
+
+MODE=$1
+PM2_FLAG=false
+if [ "${2:-}" = "--pm2" ]; then
+  PM2_FLAG=true
+fi
+
+NGINX_SITES_AVAILABLE=/etc/nginx/sites-available
+NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
+TARGET_CONF=dashboard.conf
+ROOT_DIR="/var/www/maintenance-site"
+
+timestamp() { date -u +"%Y%m%dT%H%M%SZ"; }
+
+echo "Root dir: ${ROOT_DIR}"
+if [ ! -d "$ROOT_DIR" ]; then
+  echo "Error: ${ROOT_DIR} does not exist. Copy your maintenance site to that path on the server." >&2
+  exit 3
+fi
+
+SRC_ON="${ROOT_DIR}/nginx/maintenance.conf"
+SRC_OFF="${ROOT_DIR}/nginx/dashboard.conf"
+DEST="${NGINX_SITES_AVAILABLE}/${TARGET_CONF}"
+
+# create backup of existing target if present
+if [ -f "$DEST" ]; then
+  BACKUP="${DEST}.bak.$(timestamp)"
+  echo "Backing up existing $DEST -> $BACKUP"
+  sudo cp "$DEST" "$BACKUP"
+fi
+
+if [ "$MODE" = "on" ]; then
+  echo "Enabling maintenance mode..."
+  sudo cp "$SRC_ON" "$DEST"
+elif [ "$MODE" = "off" ]; then
+  echo "Disabling maintenance mode (restoring dashboard)..."
+  sudo cp "$SRC_OFF" "$DEST"
+else
+  echo "Unknown mode: $MODE" >&2
+  exit 2
+fi
+
+echo "Updating symlink in sites-enabled (atomic)"
+sudo ln -sf "$DEST" "$NGINX_SITES_ENABLED/$TARGET_CONF"
+
+echo "Testing nginx configuration..."
+if ! sudo nginx -t; then
+  echo "nginx -t failed, attempting rollback..." >&2
+  # try to restore backup if available
+  if [ -n "${BACKUP:-}" ] && [ -f "${BACKUP}" ]; then
+    sudo cp "${BACKUP}" "$DEST"
+    sudo ln -sf "$DEST" "$NGINX_SITES_ENABLED/$TARGET_CONF"
+    sudo nginx -t || echo "Rollback: nginx -t still failing; manual intervention required" >&2
+  fi
+  exit 4
+fi
+
+echo "Reloading nginx"
+sudo systemctl reload nginx
+
+if [ "$PM2_FLAG" = true ]; then
+  if [ "$MODE" = "on" ]; then
+    echo "Starting maintenance server via PM2"
+    sudo -E pm2 start /var/www/maintenance-site/ecosystem.config.js --only maintenance || true
+  else
+    echo "Stopping maintenance server via PM2"
+    sudo -E pm2 stop maintenance || true
+  fi
+fi
+
+echo "Done. Nginx reloaded with mode=$MODE"

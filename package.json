@@ -1,0 +1,11 @@
+{
+  "name": "maintenance-site",
+  "version": "1.0.0",
+  "description": "Minimal static maintenance site and small Node server for PM2",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "MIT"
+}
