@@ -6,7 +6,7 @@ param(
 $root = '/var/www/maintenance-site'
 $nginxAvailable = '/etc/nginx/sites-available'
 $nginxEnabled = '/etc/nginx/sites-enabled'
-$target = 'dashboard.conf'
+$target = 'dashboard.frynetworks.com'
 
 function Timestamp { Get-Date -Format yyyyMMddTHHmmssZ }
 
@@ -16,8 +16,8 @@ if (-not (Test-Path -Path $root -PathType Container)) {
   exit 3
 }
 
-$srcOn = "$root/nginx/maintenance.conf"
-$srcOff = "$root/nginx/dashboard.conf"
+$srcOn = "$root/nginx/maintenance.frynetworks.com"
+$srcOff = "$root/nginx/dashboard.frynetworks.com"
 $dest = "$nginxAvailable/$target"
 
 if (Test-Path -Path $dest -PathType Leaf) {

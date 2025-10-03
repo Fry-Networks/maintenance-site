@@ -15,7 +15,7 @@ fi
 
 NGINX_SITES_AVAILABLE=/etc/nginx/sites-available
 NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
-TARGET_CONF=dashboard.conf
+TARGET_CONF=dashboard.frynetworks.com
 ROOT_DIR="/var/www/maintenance-site"
 
 timestamp() { date -u +"%Y%m%dT%H%M%SZ"; }
@@ -26,8 +26,8 @@ if [ ! -d "$ROOT_DIR" ]; then
   exit 3
 fi
 
-SRC_ON="${ROOT_DIR}/nginx/maintenance.conf"
-SRC_OFF="${ROOT_DIR}/nginx/dashboard.conf"
+SRC_ON="${ROOT_DIR}/nginx/maintenance.frynetworks.com"
+SRC_OFF="${ROOT_DIR}/nginx/dashboard.frynetworks.com"
 DEST="${NGINX_SITES_AVAILABLE}/${TARGET_CONF}"
 
 # create backup of existing target if present
