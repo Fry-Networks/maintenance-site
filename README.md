@@ -3,6 +3,7 @@ Maintenance site (standalone)
 This folder is a minimal, dependency-free static maintenance page you can deploy as a temporary site for dashboard.frynetworks.com. It intentionally has no JS or API calls.
 
 Files:
+
 - index.html — the maintenance page. It expects `Logo.png` and `background.png` to be present in the same folder.
 - server.js — a tiny Node static server that serves files in this folder (no external deps).
 - package.json — start script to run the server with `node server.js`.
@@ -17,6 +18,7 @@ Maintenance site (standalone)
 This folder is a minimal, dependency-free static maintenance page you can deploy as a temporary site for dashboard.frynetworks.com. It intentionally has no JS or API calls.
 
 Files:
+
 - index.html — the maintenance page. It expects `Logo.png` and `background.png` to be present in the same folder.
 - server.js — a tiny Node static server that serves files in this folder (no external deps).
 - package.json — start script to run the server with `node server.js`.
@@ -41,8 +43,7 @@ node server.js
 # then open http://localhost:8080
 ```
 
-Deploy to VPS with PM2 (recommended)
------------------------------------
+## Deploy to VPS with PM2 (recommended)
 
 1. SCP or rsync the folder to your VPS, e.g.:
 
@@ -70,47 +71,24 @@ pm2 status
 curl -I http://localhost:8080
 ```
 
-Nginx snippet — swap upstream to maintenance
--------------------------------------------
+## Nginx Configuration
 
-This example assumes you have an nginx server block for `dashboard.frynetworks.com` which proxies to your normal upstream (dashboard app). Create a separate upstream for the maintenance server and then switch `proxy_pass` to that upstream while in maintenance window.
+This setup includes two nginx configuration files in the `nginx/` directory:
 
-```nginx
-upstream dashboard_app {
-	server 127.0.0.1:3000; # your normal dashboard backend
-}
+- `dashboard.conf` - Routes traffic to your dashboard (port 3000)
+- `maintenance.conf` - Routes traffic to the maintenance page (port 8080)
 
-upstream maintenance_app {
-	server 127.0.0.1:8080; # maintenance server
-}
+The toggle script automatically swaps between these configurations.
 
-server {
-	server_name dashboard.frynetworks.com;
+**Important:** The configurations are designed to be copied to `/etc/nginx/sites-available/dashboard.conf` and symlinked to `/etc/nginx/sites-enabled/`. The toggle script handles this automatically.
 
-	location / {
-		# Point to maintenance_app during maintenance, otherwise dashboard_app
-		proxy_pass http://maintenance_app;
-		proxy_set_header Host $host;
-		proxy_set_header X-Real-IP $remote_addr;
-		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-		proxy_set_header X-Forwarded-Proto $scheme;
-	}
-
-	# Keep static health check or admin routes proxied to dashboard_app if needed
-}
-```
-
-To switch back after maintenance: update the `proxy_pass` back to `http://dashboard_app` and reload nginx (`sudo nginx -s reload` or `systemctl reload nginx`).
-
-Optional: Return 503 for API clients
------------------------------------
+## Optional: Return 503 for API clients
 
 If you want API clients to get a 503 rather than the HTML, I can add a small rule in `server.js` to detect paths starting with `/api/` and return 503 + `Retry-After` header. Tell me if you want that behavior and I'll add it.
 
 If you want, I can also add a small systemd service unit example for servers not using PM2.
 
-Quick toggle script (optional)
------------------------------
+## Quick toggle script (optional)
 
 If you prefer a single command to switch nginx between dashboard and maintenance, copy the `scripts/maintenance` file to your VPS (and make it executable). Usage:
 
@@ -123,19 +101,42 @@ sudo /var/www/maintenance-site/scripts/maintenance off  # disable maintenance
 
 There is also a PowerShell version `scripts/maintenance.ps1` if you prefer invoking via PowerShell remoting.
 
-Safer toggle usage (new)
-------------------------
+## Toggling Between Dashboard and Maintenance Mode
 
-The provided toggle scripts now create a timestamped backup of the existing `/etc/nginx/sites-available/dashboard.conf` before swapping, validate `nginx -t`, and optionally start/stop the PM2 process using a flag.
+The maintenance site includes automated toggle scripts to easily switch between normal dashboard operation and maintenance mode.
 
-Examples (on the VPS, user with sudo privileges):
+### Commands
+
+**Enable Maintenance Mode** (shows maintenance page to users):
 
 ```bash
-# enable maintenance and start the maintenance pm2 process (if you used the ecosystem file)
 sudo /var/www/maintenance-site/scripts/maintenance on --pm2
+```
 
-# disable maintenance and stop the maintenance pm2 process
+**Disable Maintenance Mode** (restores dashboard):
+
+```bash
 sudo /var/www/maintenance-site/scripts/maintenance off --pm2
+```
+
+### What the Toggle Does
+
+The script automatically:
+
+1. Creates a timestamped backup of your current nginx configuration
+2. Swaps the nginx configuration to point to the appropriate backend
+3. Validates the nginx configuration with `nginx -t`
+4. Reloads nginx if validation passes
+5. Starts/stops the maintenance PM2 process (when using `--pm2` flag)
+6. Rolls back automatically if validation fails
+
+### Additional Examples
+
+Without PM2 process management:
+
+```bash
+sudo /var/www/maintenance-site/scripts/maintenance on   # enable maintenance
+sudo /var/www/maintenance-site/scripts/maintenance off  # disable maintenance
 ```
 
 PowerShell example:
@@ -147,8 +148,7 @@ PowerShell example:
 . /var/www/maintenance-site/scripts/maintenance.ps1 -Mode off -PM2
 ```
 
-Health checks & rollback
-------------------------
+## Health checks & rollback
 
 1. After running `maintenance on`, confirm nginx is healthy:
 
