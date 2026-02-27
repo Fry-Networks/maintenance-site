@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
-# usage: maintenance on|off [--pm2]
+# usage: maintenance on|off
 set -euo pipefail
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-  echo "Usage: $0 on|off [--pm2]"
+if [ "$#" -lt 1 ] || [ "$#" -gt 1 ]; then
+  echo "Usage: $0 on|off"
   exit 2
 fi
 
 MODE=$1
-PM2_FLAG=false
-if [ "${2:-}" = "--pm2" ]; then
-  PM2_FLAG=true
-fi
 
 NGINX_SITES_AVAILABLE=/etc/nginx/sites-available
 NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
 TARGET_CONF=dashboard.frynetworks.com
-ROOT_DIR="/var/www/maintenance-site"
+ROOT_DIR="/home/helpdesk/subdomains/maintenance-site"
 
 timestamp() { date -u +"%Y%m%dT%H%M%SZ"; }
 
@@ -65,15 +61,5 @@ fi
 
 echo "Reloading nginx"
 sudo systemctl reload nginx
-
-if [ "$PM2_FLAG" = true ]; then
-  if [ "$MODE" = "on" ]; then
-    echo "Starting maintenance server via PM2"
-    sudo -E pm2 start /var/www/maintenance-site/ecosystem.config.js --only maintenance || true
-  else
-    echo "Stopping maintenance server via PM2"
-    sudo -E pm2 stop maintenance || true
-  fi
-fi
 
 echo "Done. Nginx reloaded with mode=$MODE"
