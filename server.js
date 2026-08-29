@@ -24,6 +24,16 @@ const server = http.createServer((req, res) => {
     // Normalize directory requests
     if (urlPath === '/') filePath = path.join(root, 'index.html');
 
+    // Prevent path traversal outside root (e.g. via encoded ../ sequences
+    // that survive URL parsing and are only decoded by decodeURIComponent above)
+    const resolvedRoot = path.resolve(root);
+    const resolvedPath = path.resolve(filePath);
+    if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(resolvedRoot + path.sep)) {
+      res.writeHead(403, {'Content-Type': 'text/plain'});
+      res.end('Forbidden');
+      return;
+    }
+
     fs.stat(filePath, (err, stats) => {
       if (err) {
         // Fallback to index.html for unknown routes
